@@ -5,7 +5,6 @@ const logger = require('./logger');
 const moviesRouter = require('./routes/movies');
 const authMiddleware = require('./middleware/auth');
 const { connectRedis, disconnectRedis } = require('./services/redis');
-const { seedMovies } = require('./seed');
 
 const app = express();
 
@@ -32,29 +31,40 @@ app.use((err, req, res, _next) => {
 });
 
 let server;
+let shuttingDown = false;
 
 async function start() {
   await connectRedis();
 
-  // Seed movies on startup if collection is empty
-  try {
-    await seedMovies();
-  } catch (err) {
-    logger.error({ err }, 'Seed failed on startup — continuing');
-  }
-
   server = app.listen(config.port, () => {
     logger.info({ port: config.port }, 'Movie service started');
   });
+
+  // Allow keep-alive connections to be closed during shutdown
+  server.keepAliveTimeout = 65 * 1000;
+  server.headersTimeout = 66 * 1000;
 }
 
-// Graceful shutdown
+// Graceful shutdown — drain in-flight requests before exiting
 async function shutdown(signal) {
-  logger.info({ signal }, 'Shutdown signal received');
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  logger.info({ signal }, 'Shutdown signal received — draining connections');
 
   if (server) {
-    server.close(() => {
-      logger.info('HTTP server closed');
+    // Stop accepting new connections and wait for in-flight requests to finish
+    await new Promise((resolve) => {
+      server.close(() => {
+        logger.info('HTTP server closed — all in-flight requests drained');
+        resolve();
+      });
+
+      // Force close after 10s if requests don't finish
+      setTimeout(() => {
+        logger.warn('Forced shutdown after drain timeout');
+        resolve();
+      }, 10000);
     });
   }
 
