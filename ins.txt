@@ -1,0 +1,4 @@
+  npm install
+  docker run -d --name movies-redis -p 6380:6379 redis:7-alpine                
+  gcloud auth application-default login                       
+  GCP_PROJECT_ID=project-e005e972-f26f-4d68-b51 REDIS_PORT=6380 npm run dev
