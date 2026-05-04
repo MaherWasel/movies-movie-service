@@ -19,7 +19,7 @@ app.get("/health", (req, res) => {
     status: "ok",
     service: "movie-service",
     timestamp: new Date().toISOString(),
-    message: "Hello",
+    message: "Hello Mohammed",
   });
 });
 
